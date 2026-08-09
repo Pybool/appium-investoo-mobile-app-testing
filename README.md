@@ -1,208 +1,156 @@
 # investoo-tests
 
-Appium + WebdriverIO end-to-end test suite for the Investoo mobile app (`investoo-mobile`), running against a real built APK on either a physical Android device or an emulator. Uses the Page Object Model, Mocha (BDD), and Allure reporting.
+Appium + WebdriverIO tests for the mobile app. Runs against a real built APK, either on a physical Android device or an emulator. Page Object Model, Mocha, Allure for reports.
 
-## Prerequisites
+## Setup
 
-- Node.js + npm
-- Java JDK (for Appium/UiAutomator2 and the Android SDK tooling)
-- Android SDK platform-tools on `PATH` (`adb`)
-- An Android device (physical, over USB or wireless ADB) or a running emulator
-- The `investoo-server` backend running and reachable (see below)
-- A built APK of `investoo-mobile` (see "Building the APK")
+You'll need:
+
+- Node + npm
+- Java JDK (for Appium/UiAutomator2)
+- Android SDK platform-tools on PATH (adb)
+- A device or emulator
+- investoo-server running somewhere reachable
+- A built APK (see below)
 
 ```bash
 npm install
 ```
 
-## Directory layout
+## Layout
 
 ```
-config/
-  wdio.conf.ts           # base WebdriverIO config — spec globs, suites, reporters, timeouts
-  wdio.android.conf.ts   # Android/UiAutomator2 capabilities, reads device/app env vars
+config/           wdio configs (base + android capabilities)
 src/
-  helpers/
-    driver.ts            # element wait/scroll/read helpers, resetApp(), selector resolution
-    gestures.ts           # swipe/scroll gesture helpers
-    bugLogger.ts          # recordIfBug() — appends validation gaps to bugs.json
-  screens/                # Page Object Model — one file per screen
-  tests/                  # one folder per feature area, mirrors suites in wdio.conf.ts
-    onboarding/, auth/, home/, invest/, wallet/, profile/
-scripts/
-  seed.ts                 # seeds a Postgres DB with fixture users/opportunities/wallets/etc.
-data/
-  investoo.apk             # built APK under test (gitignored, not committed)
-bugs.json                  # auto-logged validation/behavior gaps found by the suite (gitignored)
-reports/allure-results/    # Allure raw results (gitignored)
-logs/appium.log            # Appium server log (gitignored)
+  helpers/        driver.ts (wait/scroll/read helpers), gestures.ts, bugLogger.ts
+  screens/        page objects, one file per screen
+  tests/          specs, grouped by feature area
+scripts/seed.ts   seeds fixture data into postgres
+data/             apk goes here, gitignored
+bugs.json         validation gaps found by the suite, gitignored
 ```
 
-## Environment variables (`.env`)
+## .env
 
-Create `investoo-tests/.env` (gitignored, never commit real values). Reference:
-
-| Variable | Required | Purpose |
-|---|---|---|
-| `APPIUM_HOST` | no (default `127.0.0.1`) | Host the Appium server listens on |
-| `APPIUM_PORT` | no (default `4723`) | Port the Appium server listens on |
-| `ANDROID_DEVICE_NAME` | yes | Target device: USB serial, `<ip>:5555` for wireless ADB, or `emulator-5554` |
-| `ANDROID_PLATFORM_VERSION` | no (default `13`) | Android version on the target device |
-| `ANDROID_APP_PACKAGE` | no (default `com.investoo.app`) | App package under test |
-| `ANDROID_APP_ACTIVITY` | no (default `com.investoo.app.MainActivity`) | Launch activity |
-| `APP_PATH` | yes | Path to the built APK (see "Building the APK") |
-| `API_BASE_URL` | yes | Backend URL the app under test talks to |
-| `QA_POSTGRES_HOST` / `_PORT` / `_DB` / `_USER` / `_PASSWORD` | yes (for `npm run seed`) | DB backing whichever server `API_BASE_URL` points at |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | yes (for `npm run seed`) | Admin account `scripts/seed.ts` creates/uses |
-| `TEST_USER_EMAIL` / `TEST_USER_PASSWORD` | yes | Default logged-in test user credentials (seeded) |
-| `TEST_USER_OTP_OVERRIDE` | yes | OTP value the backend accepts unconditionally in place of a real emailed code |
-| `DEFAULT_TIMEOUT` | no (default `10000`) | Default element-wait timeout, ms |
-| `LONG_TIMEOUT` | no (default `30000`) | Longer timeout for slow operations, ms |
-
-Example:
+Copy the vars below into `investoo-tests/.env` and fill them in. Never commit it.
 
 ```bash
-# Appium server
 APPIUM_HOST=127.0.0.1
 APPIUM_PORT=4723
 
-# Device — see "Connecting a device" below
-ANDROID_DEVICE_NAME=<serial-or-ip:5555-or-emulator-5554>
+ANDROID_DEVICE_NAME=          # usb serial, <ip>:5555 for wireless adb, or emulator-5554
 ANDROID_PLATFORM_VERSION=13
 ANDROID_APP_PACKAGE=com.investoo.app
 ANDROID_APP_ACTIVITY=com.investoo.app.MainActivity
 
-# Built APK path
 APP_PATH=./data/investoo.apk
 
-# Backend the app under test talks to, and the DB behind it (for scripts/seed.ts)
 API_BASE_URL=http://localhost:8080/api
 QA_POSTGRES_HOST=127.0.0.1
 QA_POSTGRES_PORT=5432
 QA_POSTGRES_DB=investoo
 QA_POSTGRES_USER=investoo
-QA_POSTGRES_PASSWORD=investoo_dev
+QA_POSTGRES_PASSWORD=
 
-# Admin account created by scripts/seed.ts
 ADMIN_EMAIL=admin@investoo.qa
-ADMIN_PASSWORD=AdminPassword123!
+ADMIN_PASSWORD=
 
-# Default logged-in test user (seeded by scripts/seed.ts: tier 2 KYC, funded wallet)
 TEST_USER_EMAIL=investor.funded@investoo.qa
-TEST_USER_PASSWORD=TestPassword123!
+TEST_USER_PASSWORD=
 
-# TokenStore.validateOtp() accepts this for every OTP purpose — see Known Issues
-TEST_USER_OTP_OVERRIDE=000000
+TEST_USER_OTP_OVERRIDE=000000   # backend accepts this instead of a real otp, see below
 
-# Timeouts (ms)
 DEFAULT_TIMEOUT=20000
 LONG_TIMEOUT=30000
 ```
 
-`QA_POSTGRES_*` can point at either an isolated QA database or the native dev database — `scripts/seed.ts` is idempotent either way (see below). Whichever DB it points at must be the same one `investoo-server` (at `API_BASE_URL`) is actually using, since the app under test talks to that server over the network.
+The postgres vars need to point at whatever DB the server behind API_BASE_URL is actually using, otherwise `npm run seed` writes data the app can't see.
 
 ## Running the backend
 
-The app (and therefore the tests) needs `investoo-server` up and reachable at `API_BASE_URL`, with Postgres and Redis running behind it. From `investoo-server/`:
-
 ```bash
-# Native Postgres/Redis (no Docker) — see investoo-server/.env for which mode is active
-bash dev-start.sh --build   # rebuilds the JAR then starts it
-# or, if already built:
-bash dev-start.sh
+cd ../investoo-server
+bash dev-start.sh --build   # or just dev-start.sh if the jar is already built
+curl http://localhost:8080/api/actuator/health   # should say UP
 ```
 
-Confirm it's healthy before running tests:
-
-```bash
-curl http://localhost:8080/api/actuator/health
-```
-
-## Seeding test data
+## Seeding data
 
 ```bash
 npm run seed
 ```
 
-Seeds an admin, 8 investor users covering various KYC tiers/statuses, 6 opportunities (one FUNDED, one at 85% subscribed), wallet balances with matching double-entry ledger rows, one confirmed investment, and a handful of notifications. Safe to re-run — it looks up existing rows (by email/slug) and skips or reuses them instead of erroring on conflicts. Full list of seeded users and passwords is printed at the end of the run.
+Creates an admin, a handful of investor users at different KYC tiers, some opportunities, wallet balances with matching ledger entries, one investment, a few notifications. Safe to run more than once, it reuses existing rows instead of erroring. Prints the full user/password list when it's done.
 
-## Building the APK
+## Getting the APK
 
 ```bash
 cd ../investoo-mobile
 eas build --platform android --profile preview
 ```
 
-Download the resulting APK from the link EAS prints and place it at `investoo-tests/data/investoo.apk` (path must match `APP_PATH` in `.env`). The `preview` profile bakes in `EXPO_PUBLIC_API_URL` from `investoo-mobile/eas.json` at build time — that must point at a URL the device can actually reach (e.g. an ngrok tunnel to `investoo-server`) since it's fixed at build time, not runtime.
+Grab the download link EAS prints and drop the file at `data/investoo.apk`. Heads up: `EXPO_PUBLIC_API_URL` gets baked into the build at compile time, not read at runtime, so make sure `eas.json`'s preview profile points at a URL the phone can actually reach before building.
 
 ## Connecting a device
 
-### Emulator
+**Emulator**
 
 ```bash
 "C:\Android\emulator\emulator.exe" -avd Pixel_API33
-adb devices                       # expect: emulator-5554   device
+adb devices   # should show emulator-5554
 adb -s emulator-5554 install ./data/investoo.apk
 ```
 
-Set `ANDROID_DEVICE_NAME=emulator-5554` in `.env` (this is also the default if the var is unset).
+`ANDROID_DEVICE_NAME=emulator-5554` (also the default if you leave it blank).
 
-### Physical device — wireless ADB
+**Physical device, wireless adb**
 
 ```bash
-# 1. Plug in via USB, confirm authorized
-adb kill-server && adb start-server && adb devices -l
+adb kill-server && adb start-server && adb devices -l   # plug in over usb first
 
-# 2. Get the phone's current Wi-Fi IP (re-check every time — it can change)
-adb shell ip addr show wlan0 | grep "inet "
+adb shell ip addr show wlan0 | grep "inet "   # get the phone's wifi ip
 
-# 3. Confirm the phone and this computer are on the same /24 subnet before continuing
-#    (PowerShell): Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.InterfaceAlias -eq "Wi-Fi"}
-
-# 4. Switch to TCP/IP mode (still over USB)
 adb tcpip 5555
-
-# 5. Connect over Wi-Fi, then unplug USB
-adb connect <PHONE_IP>:5555
-adb devices -l                    # expect: <PHONE_IP>:5555   device
+adb connect <phone-ip>:5555
+adb devices -l   # unplug usb once you see it listed
 ```
 
-Then set `ANDROID_DEVICE_NAME=<PHONE_IP>:5555` in `.env`.
+Set `ANDROID_DEVICE_NAME=<phone-ip>:5555`.
 
-**Troubleshooting:**
-- `adb tcpip`/`adb connect` hangs indefinitely with no output: `adb.exe` is a native Windows process, and Git Bash/MSYS signal-based timeouts often can't kill it — the hang looks like a network issue but is really a wedged adb client. Force-kill and restart cleanly: (PowerShell) `Get-Process adb -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Seconds 1; adb start-server`, then retry from step 4.
-- Phone unreachable despite being confirmed on the same subnet, and `arp -a` shows no entry at all for the phone's IP (only the router/gateway and broadcast address): likely AP/client isolation on the router blocking device-to-device traffic at layer 2. Restarting both the phone and the router has reliably cleared this. If it recurs on the same network, check the router admin panel for an "AP Isolation"/"Client Isolation"/"Guest Network" setting, or use a phone hotspot instead of the router to sidestep it entirely.
-- Device later reports as offline: the phone's IP may have changed (DHCP lease renewal) or its Wi-Fi radio slept. Re-run from step 2.
+A couple things that have bitten us before:
+- if `adb connect` just hangs forever with no error, it's usually not actually a network problem, adb.exe on Windows doesn't respond to Git Bash's timeout/kill the way you'd expect. Kill it from PowerShell instead (`Get-Process adb | Stop-Process -Force`) and start over.
+- if the phone and PC are on the same subnet but still can't reach each other, and `arp -a` shows no entry for the phone's IP at all, that's router client isolation, not us. Restarting the phone and router has fixed it every time so far.
+- phone's IP changes fairly often (dhcp), so if the device suddenly looks offline, just re-check the IP and reconnect.
 
 ## Running tests
 
-Start Appium in one terminal, run tests in another:
+Two terminals: one for appium, one for the actual test run.
 
 ```bash
 npm run appium
 ```
 
 ```bash
-npm run test:android              # everything under src/tests/**/*.test.ts
-npm run test:suite:auth           # onboarding + register + login
-npm run test:suite:invest         # home + browse + invest flow
-npm run test:suite:wallet         # wallet + fund + withdraw
-npm run test:suite:profile        # profile + kyc
+npm run test:android
+npm run test:suite:auth
+npm run test:suite:invest
+npm run test:suite:wallet
+npm run test:suite:profile
 ```
 
-Suite membership is defined in `config/wdio.conf.ts`'s `suites` block. To run a single spec file directly:
+or a single spec:
 
 ```bash
 npx wdio run config/wdio.android.conf.ts --spec ./src/tests/auth/register.test.ts
 ```
 
-Allure results are written to `reports/allure-results/`; a screenshot is auto-captured on any test failure (`afterTest` hook in `wdio.conf.ts`).
+Screenshots get taken automatically on failure. Allure results land in `reports/allure-results/`.
 
-## Bug logging (`bugs.json`)
+## bugs.json
 
-Some specs (e.g. `register.test.ts`'s field-validation cases) don't hard-fail on every gap — they call `recordIfBug()` (`src/helpers/bugLogger.ts`), which appends an entry to `bugs.json` only when actual output differs from expected, alongside a note on the likely root cause. This lets a single data-driven run surface every validation gap in one pass instead of stopping at the first mismatch. Check `bugs.json` after a run for anything new.
+A few specs (register field validation mainly) don't stop at the first failed case, they log every mismatch to `bugs.json` via `recordIfBug()` and keep going, so one run surfaces everything at once instead of one bug per run. Worth checking after any run touching those specs.
 
-## Known issues
+## Known gaps
 
-- `TokenStore.validateOtp()` on the backend accepts `000000` as a valid OTP for every purpose (email verify, login confirm, password reset) with no environment gating — convenient for tests, but flagged as a security concern for anything beyond local/QA use.
-- Name fields (`firstName`/`lastName`) have no character-class validation on either the client (Zod, `min(2)` only) or backend (`@NotBlank @Size(min=2,max=100)`, no regex) — digits, symbols, `@`, underscores, angle brackets, and emoji are all currently accepted. Logged in `bugs.json`.
+- The OTP override (`000000`) is accepted for every OTP purpose on the backend with no env check. Fine for testing, not something that should ship as-is.
+- firstName/lastName accept basically anything right now, digits, symbols, emoji, even `<script>`. No character check client or server side. Already in bugs.json.
