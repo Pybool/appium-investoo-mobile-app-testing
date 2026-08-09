@@ -118,8 +118,6 @@ Confirm it's healthy before running tests:
 curl http://localhost:8080/api/actuator/health
 ```
 
-See the root [`COMMANDS.txt`](../COMMANDS.txt) for the Docker-based QA Postgres alternative and other server startup variants.
-
 ## Seeding test data
 
 ```bash
@@ -151,8 +149,6 @@ Set `ANDROID_DEVICE_NAME=emulator-5554` in `.env` (this is also the default if t
 
 ### Physical device — wireless ADB
 
-Full step-by-step setup and troubleshooting (including the AP/client-isolation and adb-hang failure modes we've hit) lives in the root [`COMMANDS.txt`](../COMMANDS.txt), section 12. Quick version:
-
 ```bash
 # 1. Plug in via USB, confirm authorized
 adb kill-server && adb start-server && adb devices -l
@@ -160,15 +156,23 @@ adb kill-server && adb start-server && adb devices -l
 # 2. Get the phone's current Wi-Fi IP (re-check every time — it can change)
 adb shell ip addr show wlan0 | grep "inet "
 
-# 3. Switch to TCP/IP mode (still over USB)
+# 3. Confirm the phone and this computer are on the same /24 subnet before continuing
+#    (PowerShell): Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.InterfaceAlias -eq "Wi-Fi"}
+
+# 4. Switch to TCP/IP mode (still over USB)
 adb tcpip 5555
 
-# 4. Connect over Wi-Fi, then unplug USB
+# 5. Connect over Wi-Fi, then unplug USB
 adb connect <PHONE_IP>:5555
 adb devices -l                    # expect: <PHONE_IP>:5555   device
 ```
 
-Then set `ANDROID_DEVICE_NAME=<PHONE_IP>:5555` in `.env`. If `adb tcpip`/`adb connect` hangs, or the phone's IP is unreachable despite being on the same subnet, see the Troubleshooting section in `COMMANDS.txt` section 12 before assuming it's a code/config issue.
+Then set `ANDROID_DEVICE_NAME=<PHONE_IP>:5555` in `.env`.
+
+**Troubleshooting:**
+- `adb tcpip`/`adb connect` hangs indefinitely with no output: `adb.exe` is a native Windows process, and Git Bash/MSYS signal-based timeouts often can't kill it — the hang looks like a network issue but is really a wedged adb client. Force-kill and restart cleanly: (PowerShell) `Get-Process adb -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Seconds 1; adb start-server`, then retry from step 4.
+- Phone unreachable despite being confirmed on the same subnet, and `arp -a` shows no entry at all for the phone's IP (only the router/gateway and broadcast address): likely AP/client isolation on the router blocking device-to-device traffic at layer 2. Restarting both the phone and the router has reliably cleared this. If it recurs on the same network, check the router admin panel for an "AP Isolation"/"Client Isolation"/"Guest Network" setting, or use a phone hotspot instead of the router to sidestep it entirely.
+- Device later reports as offline: the phone's IP may have changed (DHCP lease renewal) or its Wi-Fi radio slept. Re-run from step 2.
 
 ## Running tests
 
