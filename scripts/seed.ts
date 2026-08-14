@@ -1,29 +1,3 @@
-/* scripts/seed.ts
- * Seeds the isolated QA Postgres database (investoo_qa, port 5434 — see
- * investoo-server/docker-compose.yml and .env) with realistic fixture data for every
- * investoo-tests section (auth, home, invest, onboarding, portfolio, profile, wallet).
- * Run: npx ts-node scripts/seed.ts   (also: npm run seed)
- * Idempotency: this script assumes a freshly migrated, empty investoo_qa database (see
- * README/plan for the docker compose down -v && up + Flyway-on-boot reset sequence). It is
- * NOT safe to run twice against the same DB — registering the same email twice 409s.
- *
- * Everything goes through the real REST API (exercising real validation/business logic)
- * except four things with no API path at all, done via direct SQL against the QA DB only:
- *   1. Flipping the bootstrap admin's role to ADMIN (creating the first admin is
- *      chicken-and-egg: POST /admin/admins itself requires an existing admin).
- *   2. Flipping a user's status to SUSPENDED (no endpoint sets this).
- *   3. Crediting a wallet (no dev backdoor exists; Paystack verification is unconditional —
- *      see PaymentService.settlePayment). Writes the exact same paired ledger_entries rows
- *      LedgerService.fundWallet() would (DEBIT USER_WALLET / CREDIT PLATFORM_REVENUE, same
- *      account_id = the wallet's own id, per the real fundWallet() implementation), so the
- *      debit=credit invariant isn't broken by seeding.
- *   4. Bumping opportunities.units_subscribed to simulate near-full funding without actually
- *      simulating dozens of real investments.
- *
- * OTP handling: TokenStore.validateOtp() unconditionally accepts "000000" for every OTP
- * purpose (email verify, login confirm, password reset), with no environment gating. This
- * script relies on that. Flagged separately as a security concern worth its own ticket.
- */
 import { config as dotenvConfig } from 'dotenv';
 import path from 'path';
 import fs from 'fs';
@@ -161,8 +135,7 @@ async function seedInvestorUsers(adminToken: string): Promise<Record<InvestorKey
     const { rows } = await pg.query<{ id: string; status: string }>(
       'SELECT id, status FROM users WHERE email = $1', [spec.email],
     );
-    // A suspended account (spec.key === 'suspended', already flipped by a prior run) cannot
-    // log in by design — skip the attempt rather than treat the resulting 403 as an error.
+    
     const token = rows[0].status === 'SUSPENDED' ? '' : await login(spec.email, INVESTOR_PASSWORD);
     users[spec.key] = { email: spec.email, password: INVESTOR_PASSWORD, token, userId: rows[0].id };
     console.log(`  ${spec.key.padEnd(14)} ${spec.email} / ${INVESTOR_PASSWORD}${exists ? '  (already existed)' : ''}`);
@@ -173,21 +146,16 @@ async function seedInvestorUsers(adminToken: string): Promise<Record<InvestorKey
     return users;
   }
 
-  // tier1: BVN-only submission auto-verifies to tier 1 (KycService.submitBvn).
   await api('/kyc/bvn', { method: 'POST', token: users.tier1.token, body: { bvn: '12345678901' } });
 
-  // tier2: BVN (tier 1) then ID+selfie (tier 2, IN_REVIEW), then admin-approved.
   await submitTier2For(users, 'tier2', '22345678901', '111222333401');
   await api(`/admin/kyc/${await latestTier2SubmissionId(users.tier2.userId)}/approve`, {
     method: 'POST', token: adminToken,
   });
 
-  // tier2Pending: same submission, left IN_REVIEW — no admin action (kyc.test.ts's
-  // "no re-submit while under review" case).
   await submitTier2For(users, 'tier2Pending', '32345678901', '111222333402');
 
-  // tier2Rejected: submitted then admin-rejected with a reason (kyc_tier stays at 1 —
-  // KycService.reject() never changes kycTier).
+
   await submitTier2For(users, 'tier2Rejected', '42345678901', '111222333403');
   await api(`/admin/kyc/${await latestTier2SubmissionId(users.tier2Rejected.userId)}/reject`, {
     method: 'POST',
@@ -195,8 +163,7 @@ async function seedInvestorUsers(adminToken: string): Promise<Record<InvestorKey
     body: { reason: 'ID document image is blurry — please resubmit a clearer photo.' },
   });
 
-  // funded / zeroBalance: tier 2 approved, same as `tier2`, so invest-flow.test.ts's wallet
-  // scenarios aren't gated on KYC at all.
+
   await submitTier2For(users, 'funded', '52345678901', '111222333404');
   await api(`/admin/kyc/${await latestTier2SubmissionId(users.funded.userId)}/approve`, {
     method: 'POST', token: adminToken,
@@ -206,7 +173,6 @@ async function seedInvestorUsers(adminToken: string): Promise<Record<InvestorKey
     method: 'POST', token: adminToken,
   });
 
-  // suspended: no API sets this — direct SQL only.
   await pg.query(`UPDATE users SET status = 'SUSPENDED' WHERE email = $1`, [users.suspended.email]);
 
   return users;
@@ -240,8 +206,7 @@ async function seedOpportunities(adminToken: string): Promise<SeededOpportunity[
       console.log(`  EXISTS (${existing[0].status})  ${s.title}`);
       continue;
     }
-    // Original deadlines are dated 2025 — already past. Shift forward relative to "now" so
-    // countdown/"days remaining" UI has real values to show.
+ 
     const subscriptionDeadline = new Date(Date.now() + (60 + i * 15) * 24 * 60 * 60 * 1000).toISOString();
     const opp = await api<{ id: string }>('/admin/opportunities', {
       method: 'POST',
@@ -256,7 +221,6 @@ async function seedOpportunities(adminToken: string): Promise<SeededOpportunity[
     console.log(`  LIVE          ${s.title}`);
   }
 
-  // Force the first opportunity to FUNDED (disabled "Invest" button test).
   const { rows: firstStatus } = await pg.query<{ status: string }>('SELECT status FROM opportunities WHERE id = $1', [created[0].id]);
   if (firstStatus[0].status !== 'FUNDED') {
     await api(`/admin/opportunities/${created[0].id}/transition`, {
@@ -267,8 +231,7 @@ async function seedOpportunities(adminToken: string): Promise<SeededOpportunity[
     console.log(`  already FUNDED  ${created[0].title}`);
   }
 
-  // Bump the second opportunity to 85% subscribed ("Almost full" >80% badge test) — no API
-  // for this without simulating dozens of real investments.
+ 
   await pg.query(`UPDATE opportunities SET units_subscribed = FLOOR(total_units * 0.85) WHERE id = $1`, [created[1].id]);
   console.log(`  -> 85% FUNDED ${created[1].title}`);
 
@@ -283,8 +246,7 @@ async function creditWallet(userId: string, amountKobo: number, description: str
   await pg.query('BEGIN');
   try {
     await pg.query('UPDATE wallets SET balance = balance + $1 WHERE id = $2', [amountKobo, walletId]);
-    // Mirrors LedgerService.fundWallet() exactly: DEBIT USER_WALLET / CREDIT PLATFORM_REVENUE,
-    // both rows' account_id = the wallet's own id (confirmed from source, not guessed).
+    
     await pg.query(
       `INSERT INTO ledger_entries (transaction_id, account_type, account_id, entry_type, amount, event_type, description)
        VALUES
@@ -312,9 +274,6 @@ async function seedInvestment(
   opportunities: SeededOpportunity[],
 ): Promise<void> {
   console.log('\n--- Investment ---');
-  // Pick the lowest-minimum-ticket LIVE opportunity (skip index 0/1, forced to FUNDED/85%
-  // above) and invest exactly its minimum ticket — comfortably under the NGN50,000 PIN
-  // threshold (InvestmentService.PIN_THRESHOLD_KOBO), so no transaction PIN setup is needed.
   const target = opportunities.slice(2).reduce((a, b) => (a.minimumTicketKobo <= b.minimumTicketKobo ? a : b));
   const investment = await api<{ id: string }>('/investments', {
     method: 'POST',

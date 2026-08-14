@@ -1,13 +1,8 @@
-/* config/wdio.conf.ts
- * Base WebdriverIO configuration for the Investoo mobile test suite.
- * Connects to a locally running Appium server (start with: npm run appium).
- * Platform-specific configs (config/wdio.android.conf.ts) spread-override this base.
- * Element locators use accessibilityId (~id) matching React Native testID props.
- * Spec and reporter paths are resolved relative to the project root (process.cwd()).
- */
+import fs from 'fs';
 import path from 'path';
 import { config as dotenvConfig } from 'dotenv';
 import type { Options } from '@wdio/types';
+import { enableDeviceProxy, disableDeviceProxy } from '../src/helpers/mitmProxy';
 
 dotenvConfig();
 
@@ -56,6 +51,18 @@ export const config: Options.Testrunner = {
     ui: 'bdd',
     timeout: 60000,
     retries: 0,
+  },
+
+  onPrepare: () => {
+    fs.writeFileSync(path.resolve(__dirname, '../bugs.json'), '[]');
+  },
+
+  before: async () => {
+    await enableDeviceProxy();
+  },
+
+  after: async () => {
+    await disableDeviceProxy();
   },
 
   afterTest: async (test, context, { error }) => {

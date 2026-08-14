@@ -146,6 +146,42 @@ npx wdio run config/wdio.android.conf.ts --spec ./src/tests/auth/register.test.t
 
 Screenshots get taken automatically on failure. Allure results land in `reports/allure-results/`.
 
+## Intercepting network calls (mitmproxy)
+
+A couple of specs (the register smoke test) need to check the app actually hit the
+backend and got a real 200 back, not just that the UI looked right. WebdriverIO
+can't see network calls on its own, so we run mitmproxy as a real proxy between
+the phone and the server and log what goes through.
+
+Install mitmproxy, generate the CA cert, and install it as trusted on the test
+device, standard setup, nothing project-specific about that part, mitmproxy's own
+docs cover it fine (mitmproxy.org). Two things worth knowing going in: on Windows,
+port 8080 is often reserved by Hyper-V/WSL, so pick something else like 8899, and
+Android won't let you install the CA cert silently via adb, it's a manual step on
+the device.
+
+Day to day, once that's done:
+
+```bash
+cd investoo-tests
+mitmdump --listen-port 8899 -s mitm/logger.py
+```
+
+`mitm/logger.py` only logs requests to the ngrok backend, not every app on the
+phone. `wdio.conf.ts` turns the phone's proxy on/off automatically around each
+test session (`before`/`after` hooks), so you don't need to touch adb yourself
+for normal test runs. If a run crashes hard and the proxy gets left on, clear it
+manually:
+
+```bash
+adb shell settings put global http_proxy :0
+```
+
+Tests read the captured traffic from `src/helpers/mitmLog.ts`'s `waitForRequest()`.
+One thing to remember: the logged `path` includes the `/api` prefix (Spring's
+context-path), so it's `waitForRequest("POST", "/api/auth/verify-email")`, not
+`/auth/verify-email` — easy to get bitten by this once.
+
 ## bugs.json
 
 A few specs (register field validation mainly) don't stop at the first failed case, they log every mismatch to `bugs.json` via `recordIfBug()` and keep going, so one run surfaces everything at once instead of one bug per run. Worth checking after any run touching those specs.
