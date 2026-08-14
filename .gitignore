@@ -14,3 +14,12 @@ bugs.json
 
 # Appium/UiAutomator2 debug artifacts
 data/window_dump.xml
+
+node_modules/
+*.apk
+.DS_Store
+.env
+.env.local
+.env.*
+!.env.example
+COMMANDS.txt
