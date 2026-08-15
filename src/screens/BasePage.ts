@@ -9,6 +9,7 @@ import {
   isEnabled,
   isFieldReady,
   scrollIntoView,
+  clearField,
 } from '../helpers/driver';
 
 export abstract class BasePage {
@@ -28,6 +29,10 @@ export abstract class BasePage {
 
   protected async type(selector: string, text: string) {
     return typeText(selector, text);
+  }
+
+  protected async clearTextField(selector: string){
+    return clearField(selector);
   }
 
   protected async read(selector: string) {

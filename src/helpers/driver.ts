@@ -5,7 +5,7 @@ dotenvConfig();
 export const DEFAULT_TIMEOUT = Number(process.env.DEFAULT_TIMEOUT ?? 10000);
 export const LONG_TIMEOUT = Number(process.env.LONG_TIMEOUT ?? 30000);
 
-function resolveSelector(selector: string): string {
+export function resolveSelector(selector: string): string {
   if (selector.startsWith('~') && driver.isAndroid) {
     const testId = selector.slice(1);
     return `android=new UiSelector().resourceId("${testId}")`;
@@ -71,9 +71,14 @@ export async function tap(selector: string) {
   await el.click();
 }
 
-export async function typeText(selector: string, text: string) {
+export async function clearField(selector: string){
   const el = await ensureVisible(selector);
   await el.clearValue();
+  return el;
+}
+
+export async function typeText(selector: string, text: string) {
+  const el = await clearField(selector);
   await el.setValue(text);
 }
 
