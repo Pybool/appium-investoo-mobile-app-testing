@@ -101,7 +101,7 @@ adb devices   # should show emulator-5554
 adb -s emulator-5554 install ./data/investoo.apk
 ```
 
-`ANDROID_DEVICE_NAME=emulator-5554` (also the default if you leave it blank).
+`ANDROID_DEVICE_NAME=emulator-5554`
 
 **Physical device, wireless adb**
 

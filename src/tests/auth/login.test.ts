@@ -1,7 +1,6 @@
 import { expect } from "chai";
 import { LoginPage } from "../../screens/LoginPage";
 import { ConfirmLoginPage } from "../../screens/ConfirmLoginPage";
-import { HomePage } from "../../screens/HomePage";
 import { resetApp } from "../../helpers/driver";
 import { LandingPage } from "../../screens/LandingPage";
 import { recordIfBug } from "../../helpers/bugLogger";
@@ -12,7 +11,6 @@ const loginPage = new LoginPage();
 const landingPage = new LandingPage();
 const registerPage = new RegisterPage();
 const confirmPage = new ConfirmLoginPage();
-const homePage = new HomePage();
 
 async function reloadLoginPage() {
   await resetApp();
@@ -23,8 +21,13 @@ async function reloadLoginPage() {
   }
 }
 
-const VALID_EMAIL = process.env.TEST_USER_EMAIL ?? "";
-const VALID_PASSWORD = process.env.TEST_USER_PASSWORD ?? "";
+const data: RegisterPayload = {
+  email: "",
+  password: "Eko@1011",
+  firstName: "Emma",
+  lastName: "Eko",
+  phone: "08100001235",
+};
 
 describe("Auth > Login", () => {
   beforeEach(async () => {
@@ -112,13 +115,7 @@ describe("Auth > Login", () => {
   describe("Credentials rejection", () => {
     it("should show an error for a wrong password", async () => {
       const email = `user.qa.${Date.now()}@example.com`;
-      const data: RegisterPayload = {
-        email: email,
-        password: "Eko@1011",
-        firstName: "Emma",
-        lastName: "Eko",
-        phone: "08100001234",
-      };
+      data.email = email;
       const response = await registerPage.registerAndVerifyNewUser(data);
       expect(response.status).to.equal(200);
       expect(response.body.success).to.be.true;
@@ -141,13 +138,7 @@ describe("Auth > Login", () => {
 
     it("should show an error for a suspended account", async () => {
       const email = `user.qa.${Date.now()}@example.com`;
-      const data: RegisterPayload = {
-        email: email,
-        password: "Eko@1011",
-        firstName: "Emma",
-        lastName: "Eko",
-        phone: "08100001235",
-      };
+      data.email = email;
       const response = await registerPage.registerAndVerifyNewUser(data);
       expect(response.status).to.equal(200);
       await loginPage.suspendUser(email);
@@ -160,13 +151,7 @@ describe("Auth > Login", () => {
 
     it("should not navigate away from the login screen on failed login", async () => {
       const email = `user.qa.${Date.now()}@example.com`;
-      const data: RegisterPayload = {
-        email: email,
-        password: "Eko@1011",
-        firstName: "Emma",
-        lastName: "Eko",
-        phone: "08100001235",
-      };
+      data.email = email;
       const response = await registerPage.registerAndVerifyNewUser(data);
       expect(response.status).to.equal(200);
       await loginPage.login(data.email, "wrong-password");
@@ -185,13 +170,7 @@ describe("Auth > Login", () => {
   describe("Successful credential submission", () => {
     it("should navigate to the OTP confirm screen after valid credentials", async () => {
       const email = `user.qa.${Date.now()}@example.com`;
-      const data: RegisterPayload = {
-        email: email,
-        password: "Eko@1011",
-        firstName: "Emma",
-        lastName: "Eko",
-        phone: "08100001235",
-      };
+      data.email = email;
       const response = await registerPage.registerAndVerifyNewUser(data);
       expect(response.status).to.equal(200);
       await loginPage.login(data.email, data.password);
@@ -211,15 +190,8 @@ describe("Auth > Login", () => {
     });
 
     it("should display the masked email address on the confirm screen", async () => {
-
       const email = `user.qa.${Date.now()}@example.com`;
-      const data: RegisterPayload = {
-        email: email,
-        password: "Eko@1011",
-        firstName: "Emma",
-        lastName: "Eko",
-        phone: "08100001235",
-      };
+      data.email = email;
       const response = await registerPage.registerAndVerifyNewUser(data);
       expect(response.status).to.equal(200);
       await loginPage.login(data.email, data.password);
@@ -237,7 +209,13 @@ describe("Auth > Login", () => {
       const infoText = await confirmPage.getInfoText();
       const emailToTest = infoText.split("code to")?.[1];
       const maskedEmail = confirmPage.isMaskedEmail(emailToTest);
-      expect(maskedEmail).to.be.true
+      expect(maskedEmail).to.be.true;
+    });
+  });
+
+  describe("Navigation", () => {
+    it("should navigate to the register screen when the register link is tapped", async () => {
+      
     });
   });
 });

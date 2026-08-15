@@ -5,6 +5,7 @@ export class ConfirmLoginPage extends BasePage {
   readonly screen = "~confirm-login-screen";
   readonly otpInput = "~confirm-login-otp-input";
   readonly submitButton = "~confirm-login-submit-button";
+  readonly resendButton = "~confirm-login-resend-button";
   readonly backButton = "~confirm-login-back-button";
   readonly emailLabel = "~confirm-login-email-label";
   readonly errorMessage = "~confirm-login-error-message";
@@ -26,6 +27,18 @@ export class ConfirmLoginPage extends BasePage {
     await this.tap(this.submitButton);
   }
 
+  async tapResend(){
+    await this.tap(this.resendButton);
+  }
+
+  async resendButtonEnabled(){
+    await this.enabled(this.resendButton);
+  }
+
+  async submitEnabled() {
+    return await this.enabled(this.submitButton);
+  }
+
   async tapBack() {
     await this.tap(this.backButton);
   }
@@ -36,6 +49,10 @@ export class ConfirmLoginPage extends BasePage {
 
   async getErrorText() {
     return this.read(this.errorMessage);
+  }
+
+  async getResendButtonText() {
+    return this.read(this.resendButton);
   }
 
   async getMainHeaderText() {
@@ -49,7 +66,11 @@ export class ConfirmLoginPage extends BasePage {
   async isErrorVisible() {
     return this.visible(this.errorMessage);
   }
-  
+
+  async ensureElementVisible(selector: string): Promise<boolean> {
+    return await this.visible(selector, DEFAULT_TIMEOUT);
+  }
+
   isMaskedEmail(email: string): boolean {
     if (!email) {
       return false;
