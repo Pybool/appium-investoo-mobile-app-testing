@@ -3,10 +3,10 @@ import { LandingPage } from "../../screens/LandingPage";
 import { OnboardingPage } from "../../screens/OnboardingPage";
 import { LoginPage } from "../../screens/LoginPage";
 import { RegisterPage } from "../../screens/RegisterPage";
-import { resetApp } from "../../helpers/driver";
+import { getPixel, resetApp } from "../../helpers/driver";
 
-const landing = new LandingPage();
-const onboarding = new OnboardingPage();
+const landingPage = new LandingPage();
+const onboardingPage = new OnboardingPage();
 const loginPage = new LoginPage();
 const registerPage = new RegisterPage();
 
@@ -16,23 +16,75 @@ describe("Onboarding", () => {
   });
 
   describe("Landing screen", () => {
-    it.only("should display the landing screen on first launch", async () => {
-      
+    it("should display the landing screen on first launch", async () => {
+      const isloaded = await landingPage.isLoaded();
+      expect(isloaded).to.be.true;
     });
-    it("should show the brand headline", async () => {});
-    it("should show the Get Started button", async () => {});
-    it("should show the Log in link for returning users", async () => {});
-    it("should navigate to the onboarding carousel when Get Started is tapped", async () => {});
-    it("should navigate to the login screen when Log in is tapped", async () => {});
-    it("should toggle between light and dark mode", async () => {});
+
+    it("should show the brand headline", async () => {
+      const headlineVisible = await landingPage.elementVisible(
+        landingPage.headline,
+      );
+      expect(headlineVisible).to.be.true;
+      const headlineText = await landingPage.getHeadlineText();
+      expect(headlineText).to.contain("Own a piece of");
+      expect(headlineText).to.contain("real businesses");
+    });
+
+    it("should show the Get Started button", async () => {
+      const getStartedBtnVisible = await landingPage.elementVisible(
+        landingPage.getStartedButton,
+      );
+      expect(getStartedBtnVisible).to.be.true;
+      const getStartedButtonText = await landingPage.getGetStartedButtonText();
+      expect(getStartedButtonText).to.equal("Get started");
+      const getStartedButtonInnerText =
+        await landingPage.getGetStartedButtonInnerText();
+      expect(getStartedButtonInnerText).to.equal("Get started");
+    });
+
+    it("should show the Log in link for returning users", async () => {
+      const loginLinkVisible = await landingPage.elementVisible(
+        landingPage.loginLink,
+      );
+      expect(loginLinkVisible).to.be.true;
+      const loginLinkText = await landingPage.getLoginLinkText();
+      expect(loginLinkText).to.equal("I already have an account  Log in");
+    });
+
+    it("should navigate to the onboarding carousel when Get Started is tapped", async () => {
+      await landingPage.tapGetStarted();
+      const isloaded = await onboardingPage.isLoaded();
+      expect(isloaded).to.be.true;
+    });
+
+    it("should navigate to the login screen when Log in is tapped", async () => {
+      await landingPage.tapLogin();
+      const isloaded = await loginPage.isLoaded();
+      expect(isloaded).to.be.true;
+    });
+
+    it.only("should toggle between light and dark mode", async () => {
+      // const before = await getPixel(20, 20);
+      // await landingPage.tapThemeToggle();
+      // await driver.pause(500); // let the re-render settle
+      // const after = await getPixel(20, 20);
+      // console.log("Before ==> ", before, "After ==> ", after)
+
+      // expect(before).to.not.deep.equal(after); 
+
+
+    });
   });
 
   describe("Onboarding carousel navigation", () => {
     before(async () => {
-      await landing.tapGetStarted();
+      await landingPage.tapGetStarted();
     });
 
-    it("should display the first slide on entry", async () => {});
+    it("should display the first slide on entry", async () => {
+      
+    });
     it("should advance to the second slide when Next is tapped", async () => {});
     it("should advance to the third slide when Next is tapped", async () => {});
     it("should advance to the fourth slide when Next is tapped", async () => {});

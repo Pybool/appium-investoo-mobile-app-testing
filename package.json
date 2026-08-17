@@ -16,6 +16,7 @@
     "@types/chai": "^4.3.16",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.20.0",
+    "@types/pngjs": "^6.0.5",
     "@wdio/allure-reporter": "^8.41.0",
     "@wdio/cli": "^8.41.0",
     "@wdio/local-runner": "^8.41.0",
@@ -29,5 +30,8 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.4.0",
     "webdriverio": "^8.41.0"
+  },
+  "dependencies": {
+    "pngjs": "^7.0.0"
   }
 }

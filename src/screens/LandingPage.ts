@@ -3,8 +3,12 @@ import { waitForElement, LONG_TIMEOUT } from "../helpers/driver";
 
 export class LandingPage extends BasePage {
   readonly getStartedButton = "~landing-get-started-button";
+  readonly getStartedButtonLabel =
+    'android=new UiSelector().resourceId("landing-get-started-button").childSelector(new UiSelector().className("android.widget.TextView"))';
   readonly skipIntro = 'android=new UiSelector().text("Skip intro")';
   readonly loginLink = "~landing-login-link";
+  readonly loginLinkLabel =
+    'android=new UiSelector().resourceId("landing-login-link").childSelector(new UiSelector().className("android.widget.TextView"))';
   readonly screen = "~landing-screen";
   readonly headline = "~landing-headline";
   readonly themeToggle = "~landing-theme-toggle";
@@ -13,9 +17,25 @@ export class LandingPage extends BasePage {
     return this.visible(this.screen);
   }
 
+  async elementVisible(selector: string){
+    return this.visible(selector)
+  }
+
   async tapGetStarted() {
     const el = await waitForElement(this.getStartedButton, LONG_TIMEOUT);
     await el.click();
+  }
+
+  async getGetStartedButtonText(){
+    return this.readLabel(this.getStartedButton);
+  }
+
+  async getGetStartedButtonInnerText(){
+    return this.read(this.getStartedButtonLabel);
+  }
+
+  async getLoginLinkText(){
+    return this.read(this.loginLinkLabel);
   }
 
   async tapSkipInto() {

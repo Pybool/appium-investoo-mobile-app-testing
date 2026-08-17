@@ -1,4 +1,6 @@
 import { config as dotenvConfig } from 'dotenv';
+import { PNG } from 'pngjs';
+
 
 dotenvConfig();
 
@@ -167,4 +169,22 @@ export async function takeScreenshot(name: string) {
 
 export async function waitForLoadingGone(timeout = LONG_TIMEOUT) {
   await waitForElementGone('~loading-indicator', timeout);
+}
+
+export async function getPixel(x: number, y: number) {
+  const base64 = await browser.takeScreenshot();
+  const buffer = Buffer.from(base64, 'base64');
+  const png = PNG.sync.read(buffer);
+  const idx = (png.width * y + x) << 2;
+  return {
+    r: png.data[idx],
+    g: png.data[idx + 1],
+    b: png.data[idx + 2],
+  };
+}
+
+
+export function hexToRgb(hex: string) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
 }
