@@ -1,5 +1,6 @@
 import { config as dotenvConfig } from 'dotenv';
 import { PNG } from 'pngjs';
+import { expect } from "chai";
 
 
 dotenvConfig();
@@ -104,6 +105,16 @@ export async function isDisplayed(selector: string, timeout = DEFAULT_TIMEOUT): 
   }
 }
 
+export async function isNotDisplayed(selector: string, timeout = DEFAULT_TIMEOUT): Promise<boolean> {
+  try {
+    const el = await $(resolveSelector(selector));
+    await el.waitForExist({ reverse: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function isInViewport(selector: string, timeout = DEFAULT_TIMEOUT): Promise<boolean> {
   const el = await waitForElement(selector, timeout);
   return el.isDisplayed();
@@ -183,6 +194,21 @@ export async function getPixel(x: number, y: number) {
   };
 }
 
+export async function expectNotDisplayed(
+  element: ChainablePromiseElement,
+  timeout = 2000
+): Promise<void> {
+  await browser.waitUntil(
+    async () => !(await element.isDisplayed()),
+    {
+      timeout,
+      interval: 100,
+      timeoutMsg: 'Element is still displayed',
+    }
+  );
+
+  expect(await element.isDisplayed()).to.be.false;
+}
 
 export function hexToRgb(hex: string) {
   const n = parseInt(hex.replace('#', ''), 16);

@@ -1,16 +1,17 @@
-import { BasePage } from './BasePage';
-import { swipeLeft, swipeRight } from '../helpers/gestures';
+import { BasePage } from "./BasePage";
+import { swipeLeft, swipeRight } from "../helpers/gestures";
 
 export class OnboardingPage extends BasePage {
-  readonly screen = '~onboarding-screen';
-  readonly nextButton = '~onboarding-next-button';
-  readonly skipButton = '~onboarding-skip-button';
-  readonly createAccountButton = '~onboarding-create-account-button';
-  readonly loginLink = '~onboarding-login-link';
+  readonly screen = "~onboarding-screen";
+  readonly nextButton = "~onboarding-next-button";
+  readonly skipButton = "~onboarding-skip-button";
+  readonly createAccountButton = "~onboarding-create-account-button";
+  readonly loginLink = "~onboarding-login-link";
+  readonly skipIntro = 'android=new UiSelector().text("Skip intro")';
 
-  eyebrow = '~onboarding-eyebrow';
-  title = '~onboarding-title';
-  body = '~onboarding-body';
+  eyebrow = "~onboarding-eyebrow";
+  title = "~onboarding-title";
+  body = "~onboarding-body";
 
   dotAt(index: number) {
     return `~onboarding-dot-${index}`;
@@ -24,8 +25,30 @@ export class OnboardingPage extends BasePage {
     return this.visible(this.screen);
   }
 
-  async tapNext() {
-    await this.tap(this.nextButton);
+  async tapNext(index: number = 1) {
+    for (let i = 0; i < index; i++) {
+      await this.tap(this.nextButton);
+    }
+  }
+
+  async isLoginLinkVisible(){
+    return await this.visible(this.loginLink);
+  }
+
+  async isNextButtonVisible() {
+    return await this.visible(this.nextButton);
+  }
+
+  async isSkipIntroVisible() {
+    return await this.visible(this.skipIntro);
+  }
+
+  async isNextButtonNotVisible() {
+    return await this.notVisible(this.nextButton);
+  }
+
+  async isSkipIntroNotVisible() {
+    return await this.notVisible(this.skipIntro);
   }
 
   async tapSkip() {
@@ -36,16 +59,24 @@ export class OnboardingPage extends BasePage {
     await this.tap(this.createAccountButton);
   }
 
+  async isCreateAccountButtonVisible() {
+    return await this.visible(this.createAccountButton);
+  }
+
   async tapLogin() {
     await this.tap(this.loginLink);
   }
 
-  async swipeToNextSlide() {
-    await swipeLeft();
+  async swipeToNextSlide(index: number = 1) {
+    for (let i = 0; i < index; i++) {
+      await swipeLeft();
+    }
   }
 
-  async swipeToPreviousSlide() {
-    await swipeRight();
+  async swipeToPreviousSlide(index: number = 1) {
+    for (let i = 0; i < index; i++) {
+      await swipeRight();
+    }
   }
 
   async getEyebrowText() {
@@ -58,5 +89,32 @@ export class OnboardingPage extends BasePage {
 
   async isFeatureChipVisible(index: number) {
     return this.visible(this.featureChipAt(index));
+  }
+
+  featureChipLabelAt(index: number) {
+    return `android=new UiSelector().resourceId("onboarding-feature-chip-${index}").childSelector(new UiSelector().className("android.widget.TextView"))`;
+  }
+
+  async getFeatureChipText(index: number) {
+    return this.read(this.featureChipLabelAt(index));
+  }
+
+  async getFeatureChipLocation(index: number) {
+    const el = await this.waitFor(this.featureChipAt(index));
+    return el.getLocation();
+  }
+
+  async getDotWidth(index: number) {
+    const el = await this.waitFor(this.dotAt(index));
+    const size = await el.getSize();
+    return size.width;
+  }
+
+  async getAllDotWidths(count: number = 4) {
+    const widths: number[] = [];
+    for (let i = 0; i < count; i++) {
+      widths.push(await this.getDotWidth(i));
+    }
+    return widths;
   }
 }

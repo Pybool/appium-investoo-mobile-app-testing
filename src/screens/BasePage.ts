@@ -5,11 +5,13 @@ import {
   getText,
   getAccessibleLabel,
   isDisplayed,
+  isNotDisplayed,
   isInViewport,
   isEnabled,
   isFieldReady,
   scrollIntoView,
   clearField,
+  waitForElementGone,
 } from '../helpers/driver';
 
 export abstract class BasePage {
@@ -21,6 +23,10 @@ export abstract class BasePage {
 
   protected async waitFor(selector: string, timeout = this.defaultTimeout) {
     return waitForElement(selector, timeout);
+  }
+
+  protected async waitForGone(selector: string, timeout = this.defaultTimeout) {
+    return waitForElementGone(selector, timeout);
   }
 
   protected async tap(selector: string) {
@@ -45,6 +51,10 @@ export abstract class BasePage {
 
   protected async visible(selector: string, timeout?: number) {
     return isDisplayed(selector, timeout);
+  }
+
+  protected async notVisible(selector: string, timeout?: number) {
+    return isNotDisplayed(selector, timeout);
   }
 
   protected async inView(selector: string, timeout?: number) {

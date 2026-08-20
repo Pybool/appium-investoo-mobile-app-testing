@@ -142,6 +142,7 @@ or a single spec:
 
 ```bash
 npx wdio run config/wdio.android.conf.ts --spec ./src/tests/auth/register.test.ts
+npx wdio run config/wdio.android.conf.ts --spec ./src/tests/auth/onboarding.test.ts
 ```
 
 Screenshots get taken automatically on failure. Allure results land in `reports/allure-results/`.
